@@ -33,6 +33,7 @@ interface ChargerConfig {
 interface AppState {
   chargerConfigs: ChargerConfig[];
   batteryCapacities: Record<string, number>;
+  V_MAX: number;
   selectedType: string;
   batteryCount: number;
   batteryVoltages: number[];
@@ -42,7 +43,6 @@ interface AppState {
 
 const STORAGE_KEY = 'charger_app_state_v1';
 const V_MIN = 0.00;
-const V_MAX = 1.40;
 
 export const Home: React.FC = () => {
   const [chargerConfigs, setChargerConfigs] = useState<ChargerConfig[]>([
@@ -56,6 +56,8 @@ export const Home: React.FC = () => {
     AAA: 1100,
     '9V': 200
   });
+
+  const [V_MAX, setV_MAX] = useState<number>(1.40);
 
   const [selectedType, setSelectedType] = useState<string>('AAA');
   const [batteryCount, setBatteryCount] = useState<number>(4);
@@ -75,6 +77,7 @@ export const Home: React.FC = () => {
         const parsed: AppState = JSON.parse(saved);
         setChargerConfigs(parsed.chargerConfigs || []);
         setBatteryCapacities(parsed.batteryCapacities || {});
+        setV_MAX(parsed.V_MAX || 1.4);
         setSelectedType(parsed.selectedType || 'AAA');
         setBatteryCount(parsed.batteryCount || 1);
         setBatteryVoltages(parsed.batteryVoltages || [1.0]);
@@ -92,6 +95,7 @@ export const Home: React.FC = () => {
     const stateToSave: AppState = {
       chargerConfigs,
       batteryCapacities,
+      V_MAX,
       selectedType,
       batteryCount,
       batteryVoltages,
@@ -215,8 +219,8 @@ export const Home: React.FC = () => {
               title: 'Carga de Baterías iniciada',
               body: `Tiempo estimado de carga restante: ${Math.floor(minutesLeft / 60)}h ${minutesLeft % 60}m`,
               id: 1,
-              schedule: { at: new Date(Date.now() + 1000) },
-              ongoing: true
+              ongoing: true,
+              autoCancel: false
             }
           ]
         });
@@ -323,7 +327,7 @@ export const Home: React.FC = () => {
         {/* Sección 3: Configuración de Carga */}
         <IonCard>
           <IonCardHeader>
-            <IonCardTitle>¿Qué vas a cargar?</IonCardTitle>
+            <IonCardTitle>Configuración de Carga</IonCardTitle>
           </IonCardHeader>
           <IonCardContent>
             <IonItem>
@@ -342,6 +346,16 @@ export const Home: React.FC = () => {
             </IonItem>
 
             <IonItem>
+              <IonLabel position='stacked'>Voltaje Máximo</IonLabel>
+              <IonInput
+                type='number'
+                disabled={isConnected}
+                value={V_MAX}
+                onIonChange={(e) => setV_MAX(Math.max(0.01, Number(e.detail.value)))}
+              />
+            </IonItem>
+
+            <IonItem>
               <IonLabel position="stacked">Cantidad de Baterías</IonLabel>
               <IonInput
                 type="number"
@@ -352,7 +366,7 @@ export const Home: React.FC = () => {
             </IonItem>
 
             <div style={{ marginTop: '15px' }}>
-              <h4>Nivel de Voltaje Inicial / Actual (1.40V = 100%)</h4>
+              <h4>Nivel de Voltaje Actual</h4>
               {batteryVoltages.map((v, index) => (
                 <div key={index} style={{ marginBottom: '12px' }}>
                   <IonItem>
@@ -391,7 +405,7 @@ export const Home: React.FC = () => {
         {/* Botón Principal */}
         <IonButton
           expand="block"
-          color="success"
+          color={isConnected ? 'danger' : 'success'}
           style={{ marginTop: '20px' }}
           onClick={handleToggleConnect}
         >
