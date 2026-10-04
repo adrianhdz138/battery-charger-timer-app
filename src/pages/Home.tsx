@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   IonContent,
   IonHeader,
@@ -19,10 +19,10 @@ import {
   IonGrid,
   IonRow,
   IonCol,
-  IonIcon
-} from '@ionic/react';
-import { add, trash } from 'ionicons/icons';
-import { LocalNotifications } from '@capacitor/local-notifications';
+  IonIcon,
+} from "@ionic/react";
+import { add, trash } from "ionicons/icons";
+import { LocalNotifications } from "@capacitor/local-notifications";
 
 interface ChargerConfig {
   id: string;
@@ -41,31 +41,38 @@ interface AppState {
   startTime: number | null;
 }
 
-const STORAGE_KEY = 'charger_app_state_v1';
-const V_MIN = 0.00;
+const STORAGE_KEY = "charger_app_state_v1";
+const V_MIN = 0.0;
+const FACTOR_ERROR = 1.35;
 
 export const Home: React.FC = () => {
   const [chargerConfigs, setChargerConfigs] = useState<ChargerConfig[]>([
-    { id: '1', type: 'AA', currentMa: 120 },
-    { id: '2', type: 'AAA', currentMa: 70 },
-    { id: '3', type: '9V', currentMa: 16 }
+    { id: "1", type: "AA", currentMa: 120 },
+    { id: "2", type: "AAA", currentMa: 70 },
+    { id: "3", type: "9V", currentMa: 16 },
   ]);
 
-  const [batteryCapacities, setBatteryCapacities] = useState<Record<string, number>>({
+  const [batteryCapacities, setBatteryCapacities] = useState<
+    Record<string, number>
+  >({
     AA: 1300,
     AAA: 1100,
-    '9V': 200
+    "9V": 200,
   });
 
-  const [V_MAX, setV_MAX] = useState<number>(1.40);
+  const [V_MAX, setV_MAX] = useState<number>(1.4);
 
-  const [selectedType, setSelectedType] = useState<string>('AAA');
+  const [selectedType, setSelectedType] = useState<string>("AAA");
   const [batteryCount, setBatteryCount] = useState<number>(4);
-  const [batteryVoltages, setBatteryVoltages] = useState<number[]>([0.9, 0.7, 1.1, 1.2]);
+  const [batteryVoltages, setBatteryVoltages] = useState<number[]>([
+    0.9, 0.7, 1.1, 1.2,
+  ]);
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [startTime, setStartTime] = useState<number | null>(null);
-  const [currentVoltages, setCurrentVoltages] = useState<number[]>([0.9, 0.7, 1.1, 1.2]);
+  const [currentVoltages, setCurrentVoltages] = useState<number[]>([
+    0.9, 0.7, 1.1, 1.2,
+  ]);
   const [progresses, setProgresses] = useState<number[]>([0, 0, 0, 0]);
   const [maxRemainingHours, setMaxRemainingHours] = useState<number>(0);
 
@@ -78,13 +85,13 @@ export const Home: React.FC = () => {
         setChargerConfigs(parsed.chargerConfigs || []);
         setBatteryCapacities(parsed.batteryCapacities || {});
         setV_MAX(parsed.V_MAX || 1.4);
-        setSelectedType(parsed.selectedType || 'AAA');
+        setSelectedType(parsed.selectedType || "AAA");
         setBatteryCount(parsed.batteryCount || 1);
         setBatteryVoltages(parsed.batteryVoltages || [1.0]);
         setIsConnected(parsed.isConnected || false);
         setStartTime(parsed.startTime || null);
       } catch (e) {
-        console.error('Error al cargar persistencia:', e);
+        console.error("Error al cargar persistencia:", e);
       }
     }
     requestNotificationPermissions();
@@ -100,16 +107,25 @@ export const Home: React.FC = () => {
       batteryCount,
       batteryVoltages,
       isConnected,
-      startTime
+      startTime,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-  }, [chargerConfigs, batteryCapacities, selectedType, batteryCount, batteryVoltages, isConnected, startTime]);
+  }, [
+    chargerConfigs,
+    batteryCapacities,
+    V_MAX,
+    selectedType,
+    batteryCount,
+    batteryVoltages,
+    isConnected,
+    startTime,
+  ]);
 
   const requestNotificationPermissions = async () => {
     try {
       await LocalNotifications.requestPermissions();
     } catch (e) {
-      console.log('Notificaciones no soportadas en web pura');
+      console.log("Notificaciones no soportadas en web pura");
     }
   };
 
@@ -131,21 +147,30 @@ export const Home: React.FC = () => {
   // Agregar y remover tipos de cargador
   const addChargerRow = () => {
     const newId = Date.now().toString();
-    setChargerConfigs([...chargerConfigs, { id: newId, type: 'NUEVO', currentMa: 100 }]);
+    setChargerConfigs([
+      ...chargerConfigs,
+      { id: newId, type: "NUEVO", currentMa: 100 },
+    ]);
   };
 
   const removeChargerRow = (id: string) => {
-    const updated = chargerConfigs.filter(c => c.id !== id);
+    const updated = chargerConfigs.filter((c) => c.id !== id);
     setChargerConfigs(updated);
   };
 
-  const updateChargerConfig = (id: string, field: 'type' | 'currentMa', value: any) => {
-    setChargerConfigs(chargerConfigs.map(item => {
-      if (item.id === id) {
-        return { ...item, [field]: value };
-      }
-      return item;
-    }));
+  const updateChargerConfig = (
+    id: string,
+    field: "type" | "currentMa",
+    value: any,
+  ) => {
+    setChargerConfigs(
+      chargerConfigs.map((item) => {
+        if (item.id === id) {
+          return { ...item, [field]: value };
+        }
+        return item;
+      }),
+    );
   };
 
   // Motor del temporizador y cálculo en tiempo real
@@ -153,8 +178,9 @@ export const Home: React.FC = () => {
     let interval: any = null;
 
     if (isConnected && startTime) {
-      interval = setInterval(() => {
-        const config = chargerConfigs.find(c => c.type === selectedType);
+      let enviada: boolean = false;
+      interval = setInterval(async () => {
+        const config = chargerConfigs.find((c) => c.type === selectedType);
         const currentMa = config ? config.currentMa : 100;
         const capacityMah = batteryCapacities[selectedType] || 1000;
         const elapsedHours = (Date.now() - startTime) / (1000 * 3600);
@@ -166,13 +192,20 @@ export const Home: React.FC = () => {
         batteryVoltages.forEach((vInit) => {
           const clampedInit = Math.max(V_MIN, Math.min(V_MAX, vInit));
           const socInit = (clampedInit - V_MIN) / (V_MAX - V_MIN);
-          const totalChargingHoursNeeded = ((capacityMah * (1 - socInit)) / currentMa) * 1.35;
+          const totalChargingHoursNeeded =
+            ((capacityMah * (1 - socInit)) / currentMa) * FACTOR_ERROR;
 
-          const addedSoc = totalChargingHoursNeeded > 0 ? (elapsedHours / totalChargingHoursNeeded) * (1 - socInit) : (1 - socInit);
+          const addedSoc =
+            totalChargingHoursNeeded > 0
+              ? (elapsedHours / totalChargingHoursNeeded) * (1 - socInit)
+              : 1 - socInit;
           const currentSoc = Math.min(1.0, socInit + addedSoc);
           const vCurrent = V_MIN + currentSoc * (V_MAX - V_MIN);
 
-          const hoursRemaining = Math.max(0, totalChargingHoursNeeded - elapsedHours);
+          const hoursRemaining = Math.max(
+            0,
+            totalChargingHoursNeeded - elapsedHours,
+          );
           if (hoursRemaining > maxHoursLeft) maxHoursLeft = hoursRemaining;
 
           nextVoltages.push(Number(vCurrent.toFixed(2)));
@@ -182,6 +215,11 @@ export const Home: React.FC = () => {
         setCurrentVoltages(nextVoltages);
         setProgresses(nextProgresses);
         setMaxRemainingHours(maxHoursLeft);
+
+        if (!enviada) {
+          await enviarNotificacion(maxHoursLeft);
+          enviada = true;
+        }
       }, 1000);
     } else {
       setCurrentVoltages([...batteryVoltages]);
@@ -189,44 +227,40 @@ export const Home: React.FC = () => {
     }
 
     return () => clearInterval(interval);
-  }, [isConnected, startTime, batteryVoltages, selectedType, chargerConfigs, batteryCapacities]);
+  }, [
+    isConnected,
+    startTime,
+    batteryVoltages,
+    selectedType,
+    chargerConfigs,
+    batteryCapacities,
+  ]);
+
+  const enviarNotificacion = async (maxHoursLeft: number) => {
+    const tiempo_str: string = `${Math.floor(maxHoursLeft)}h ${Math.round((maxHoursLeft % 1) * 60)}m`;
+
+    try {
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            title: "Carga de Baterías iniciada",
+            body: `Tiempo estimado de carga restante: ${tiempo_str}`,
+            id: 1,
+            ongoing: true,
+            autoCancel: false,
+          },
+        ],
+      });
+    } catch {
+      console.log("Notificación local enviada localmente");
+    }
+  };
 
   const handleToggleConnect = async () => {
     if (!isConnected) {
       const now = Date.now();
       setStartTime(now);
       setIsConnected(true);
-
-      // Calcular tiempo máximo para notificación
-      const config = chargerConfigs.find(c => c.type === selectedType);
-      const currentMa = config ? config.currentMa : 100;
-      const capacityMah = batteryCapacities[selectedType] || 1000;
-
-      let maxHours = 0;
-      batteryVoltages.forEach(vInit => {
-        const clamped = Math.max(V_MIN, Math.min(V_MAX, vInit));
-        const socInit = (clamped - V_MIN) / (V_MAX - V_MIN);
-        const hours = ((capacityMah * (1 - socInit)) / currentMa) * 1.35;
-        if (hours > maxHours) maxHours = hours;
-      });
-
-      const minutesLeft = Math.round(maxHours * 60);
-
-      try {
-        await LocalNotifications.schedule({
-          notifications: [
-            {
-              title: 'Carga de Baterías iniciada',
-              body: `Tiempo estimado de carga restante: ${Math.floor(minutesLeft / 60)}h ${minutesLeft % 60}m`,
-              id: 1,
-              ongoing: true,
-              autoCancel: false
-            }
-          ]
-        });
-      } catch (e) {
-        console.log('Notificación local enviada localmente');
-      }
     } else {
       setIsConnected(false);
       setStartTime(null);
@@ -250,7 +284,7 @@ export const Home: React.FC = () => {
           </IonCardHeader>
           <IonCardContent>
             <IonGrid>
-              <IonRow style={{ fontWeight: 'bold' }}>
+              <IonRow style={{ fontWeight: "bold" }}>
                 <IonCol>Tipo</IonCol>
                 <IonCol>Corriente (mA)</IonCol>
                 <IonCol size="2"></IonCol>
@@ -261,7 +295,9 @@ export const Home: React.FC = () => {
                     <IonInput
                       disabled={isConnected}
                       value={config.type}
-                      onIonChange={(e) => updateChargerConfig(config.id, 'type', e.detail.value!)}
+                      onIonChange={(e) =>
+                        updateChargerConfig(config.id, "type", e.detail.value!)
+                      }
                     />
                   </IonCol>
                   <IonCol>
@@ -269,7 +305,13 @@ export const Home: React.FC = () => {
                       type="number"
                       disabled={isConnected}
                       value={config.currentMa}
-                      onIonChange={(e) => updateChargerConfig(config.id, 'currentMa', Number(e.detail.value))}
+                      onIonChange={(e) =>
+                        updateChargerConfig(
+                          config.id,
+                          "currentMa",
+                          Number(e.detail.value),
+                        )
+                      }
                     />
                   </IonCol>
                   <IonCol size="2">
@@ -285,7 +327,12 @@ export const Home: React.FC = () => {
                 </IonRow>
               ))}
             </IonGrid>
-            <IonButton expand="block" fill="outline" disabled={isConnected} onClick={addChargerRow}>
+            <IonButton
+              expand="block"
+              fill="outline"
+              disabled={isConnected}
+              onClick={addChargerRow}
+            >
               <IonIcon slot="start" icon={add} /> Agregar Tipo
             </IonButton>
           </IonCardContent>
@@ -298,7 +345,7 @@ export const Home: React.FC = () => {
           </IonCardHeader>
           <IonCardContent>
             <IonGrid>
-              <IonRow style={{ fontWeight: 'bold' }}>
+              <IonRow style={{ fontWeight: "bold" }}>
                 <IonCol>Tipo</IonCol>
                 <IonCol>Capacidad (mAh)</IonCol>
               </IonRow>
@@ -313,7 +360,7 @@ export const Home: React.FC = () => {
                       onIonChange={(e) =>
                         setBatteryCapacities({
                           ...batteryCapacities,
-                          [config.type]: Number(e.detail.value)
+                          [config.type]: Number(e.detail.value),
                         })
                       }
                     />
@@ -346,12 +393,14 @@ export const Home: React.FC = () => {
             </IonItem>
 
             <IonItem>
-              <IonLabel position='stacked'>Voltaje Máximo</IonLabel>
+              <IonLabel position="stacked">Voltaje Máximo</IonLabel>
               <IonInput
-                type='number'
+                type="number"
                 disabled={isConnected}
                 value={V_MAX}
-                onIonChange={(e) => setV_MAX(Math.max(0.01, Number(e.detail.value)))}
+                onIonChange={(e) =>
+                  setV_MAX(Math.max(0.01, Number(e.detail.value)))
+                }
               />
             </IonItem>
 
@@ -361,14 +410,16 @@ export const Home: React.FC = () => {
                 type="number"
                 disabled={isConnected}
                 value={batteryCount}
-                onIonChange={(e) => handleCountChange(Math.max(1, Number(e.detail.value)))}
+                onIonChange={(e) =>
+                  handleCountChange(Math.max(1, Number(e.detail.value)))
+                }
               />
             </IonItem>
 
-            <div style={{ marginTop: '15px' }}>
+            <div style={{ marginTop: "15px" }}>
               <h4>Nivel de Voltaje Actual</h4>
               {batteryVoltages.map((v, index) => (
-                <div key={index} style={{ marginBottom: '12px' }}>
+                <div key={index} style={{ marginBottom: "12px" }}>
                   <IonItem>
                     <IonLabel>Batería #{index + 1} (V):</IonLabel>
                     <IonInput
@@ -384,9 +435,14 @@ export const Home: React.FC = () => {
                     />
                   </IonItem>
                   {isConnected && (
-                    <div style={{ padding: '0 16px' }}>
-                      <IonProgressBar value={progresses[index]} color="success" />
-                      <small>Progreso: {Math.round(progresses[index] * 100)}%</small>
+                    <div style={{ padding: "0 16px" }}>
+                      <IonProgressBar
+                        value={progresses[index]}
+                        color="success"
+                      />
+                      <small>
+                        Progreso: {Math.round(progresses[index] * 100)}%
+                      </small>
                     </div>
                   )}
                 </div>
@@ -394,22 +450,40 @@ export const Home: React.FC = () => {
             </div>
 
             {isConnected && (
-              <div style={{ marginTop: '15px', padding: '10px', background: '#eef9ee', borderRadius: '8px' }}>
+              <div
+                style={{
+                  marginTop: "15px",
+                  padding: "10px",
+                  background: "#eef9ee",
+                  borderRadius: "8px",
+                }}
+              >
                 <strong>Tiempo estimado restante: </strong>
-                {Math.floor(maxRemainingHours)}h {Math.round((maxRemainingHours % 1) * 60)}m
+                {Math.floor(maxRemainingHours)}h{" "}
+                {Math.round((maxRemainingHours % 1) * 60)}m
               </div>
             )}
           </IonCardContent>
         </IonCard>
 
+        <IonButton
+          expand="block"
+          color="secondary"
+          style={{ marginTop: "20px" }}
+          disabled={!isConnected}
+          onClick={() => enviarNotificacion(maxRemainingHours)}
+        >
+          Reenviar notificación
+        </IonButton>
+
         {/* Botón Principal */}
         <IonButton
           expand="block"
-          color={isConnected ? 'danger' : 'success'}
-          style={{ marginTop: '20px' }}
+          color={isConnected ? "danger" : "success"}
+          style={{ marginTop: "20px" }}
           onClick={handleToggleConnect}
         >
-          {isConnected ? 'Desconectar' : 'Conectar'}
+          {isConnected ? "Desconectar" : "Conectar"}
         </IonButton>
       </IonContent>
     </IonPage>
