@@ -33,7 +33,8 @@ interface ChargerConfig {
 interface AppState {
   chargerConfigs: ChargerConfig[];
   batteryCapacities: Record<string, number>;
-  V_MAX: number;
+  batteriesVMIN: Record<string, number>;
+  batteriesVMAX: Record<string, number>;
   selectedType: string;
   batteryCount: number;
   batteryVoltages: number[];
@@ -42,7 +43,6 @@ interface AppState {
 }
 
 const STORAGE_KEY = "charger_app_state_v1";
-const V_MIN = 0.0;
 const FACTOR_ERROR = 1.35;
 
 export const Home: React.FC = () => {
@@ -60,19 +60,28 @@ export const Home: React.FC = () => {
     "9V": 200,
   });
 
-  const [V_MAX, setV_MAX] = useState<number>(1.4);
+  const [batteriesVMIN, setBVMIN] = useState<Record<string, number>>({
+    AA: 0.9,
+    AAA: 0.9,
+    "9V": 7.0,
+  });
 
-  const [selectedType, setSelectedType] = useState<string>("AAA");
+  const [batteriesVMAX, setBVMAX] = useState<Record<string, number>>({
+    AA: 1.45,
+    AAA: 1.45,
+    "9V": 9.6,
+  });
+
+  const [selectedType, setSelectedType] = useState<string>("AA");
   const [batteryCount, setBatteryCount] = useState<number>(4);
   const [batteryVoltages, setBatteryVoltages] = useState<number[]>([
-    0.9, 0.7, 1.1, 1.2,
+    0.9, 1.0, 1.1, 1.2,
   ]);
 
   const [isConnected, setIsConnected] = useState<boolean>(false);
   const [startTime, setStartTime] = useState<number | null>(null);
-  const [currentVoltages, setCurrentVoltages] = useState<number[]>([
-    0.9, 0.7, 1.1, 1.2,
-  ]);
+  const [currentVoltages, setCurrentVoltages] =
+    useState<number[]>(batteryVoltages);
   const [progresses, setProgresses] = useState<number[]>([0, 0, 0, 0]);
   const [maxRemainingHours, setMaxRemainingHours] = useState<number>(0);
 
@@ -84,7 +93,8 @@ export const Home: React.FC = () => {
         const parsed: AppState = JSON.parse(saved);
         setChargerConfigs(parsed.chargerConfigs || []);
         setBatteryCapacities(parsed.batteryCapacities || {});
-        setV_MAX(parsed.V_MAX || 1.4);
+        setBVMIN(parsed.batteriesVMIN || {});
+        setBVMAX(parsed.batteriesVMAX || {});
         setSelectedType(parsed.selectedType || "AAA");
         setBatteryCount(parsed.batteryCount || 1);
         setBatteryVoltages(parsed.batteryVoltages || [1.0]);
@@ -102,7 +112,8 @@ export const Home: React.FC = () => {
     const stateToSave: AppState = {
       chargerConfigs,
       batteryCapacities,
-      V_MAX,
+      batteriesVMIN,
+      batteriesVMAX,
       selectedType,
       batteryCount,
       batteryVoltages,
@@ -113,7 +124,8 @@ export const Home: React.FC = () => {
   }, [
     chargerConfigs,
     batteryCapacities,
-    V_MAX,
+    batteriesVMIN,
+    batteriesVMAX,
     selectedType,
     batteryCount,
     batteryVoltages,
@@ -188,12 +200,15 @@ export const Home: React.FC = () => {
         let maxHoursLeft = 0;
         const nextVoltages: number[] = [];
         const nextProgresses: number[] = [];
+        const V_MIN = batteriesVMIN[selectedType] || 0.9;
+        const V_MAX = batteriesVMAX[selectedType] || 1.4;
 
         batteryVoltages.forEach((vInit) => {
           const clampedInit = Math.max(V_MIN, Math.min(V_MAX, vInit));
           const socInit = (clampedInit - V_MIN) / (V_MAX - V_MIN);
+          const socInitTime = clampedInit / V_MAX;
           const totalChargingHoursNeeded =
-            ((capacityMah * (1 - socInit)) / currentMa) * FACTOR_ERROR;
+            ((capacityMah * (1 - socInitTime)) / currentMa) * FACTOR_ERROR;
 
           const addedSoc =
             totalChargingHoursNeeded > 0
@@ -234,6 +249,8 @@ export const Home: React.FC = () => {
     selectedType,
     chargerConfigs,
     batteryCapacities,
+    batteriesVMIN,
+    batteriesVMAX,
   ]);
 
   const enviarNotificacion = async (maxHoursLeft: number) => {
@@ -348,6 +365,8 @@ export const Home: React.FC = () => {
               <IonRow style={{ fontWeight: "bold" }}>
                 <IonCol>Tipo</IonCol>
                 <IonCol>Capacidad (mAh)</IonCol>
+                <IonCol>V. Mín</IonCol>
+                <IonCol>V. Máx</IonCol>
               </IonRow>
               {chargerConfigs.map((config) => (
                 <IonRow key={config.id}>
@@ -355,11 +374,40 @@ export const Home: React.FC = () => {
                   <IonCol>
                     <IonInput
                       type="number"
+                      step="1"
                       disabled={isConnected}
                       value={batteryCapacities[config.type] || 1000}
                       onIonChange={(e) =>
                         setBatteryCapacities({
                           ...batteryCapacities,
+                          [config.type]: Number(e.detail.value),
+                        })
+                      }
+                    />
+                  </IonCol>
+                  <IonCol>
+                    <IonInput
+                      type="number"
+                      step="0.01"
+                      disabled={isConnected}
+                      value={batteriesVMIN[config.type] || 0.9}
+                      onIonChange={(e) =>
+                        setBVMIN({
+                          ...batteriesVMIN,
+                          [config.type]: Number(e.detail.value),
+                        })
+                      }
+                    />
+                  </IonCol>
+                  <IonCol>
+                    <IonInput
+                      type="number"
+                      step="0.01"
+                      disabled={isConnected}
+                      value={batteriesVMAX[config.type] || 1.4}
+                      onIonChange={(e) =>
+                        setBVMAX({
+                          ...batteriesVMAX,
                           [config.type]: Number(e.detail.value),
                         })
                       }
@@ -390,18 +438,6 @@ export const Home: React.FC = () => {
                   </IonSelectOption>
                 ))}
               </IonSelect>
-            </IonItem>
-
-            <IonItem>
-              <IonLabel position="stacked">Voltaje Máximo</IonLabel>
-              <IonInput
-                type="number"
-                disabled={isConnected}
-                value={V_MAX}
-                onIonChange={(e) =>
-                  setV_MAX(Math.max(0.01, Number(e.detail.value)))
-                }
-              />
             </IonItem>
 
             <IonItem>
